@@ -1,0 +1,63 @@
+version: '3'
+services:
+  db:
+    container_name: db
+    image: mysql:latest
+    hostname: db
+    volumes:
+      - ./databases:/docker-entrypoint-initdb.d
+      - db_volume:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+    command: [ '--default-authentication-plugin=mysql_native_password' ]
+    ports:
+      - 9906:3306
+  apache:
+    container_name: apache
+    build:
+      context: ./conf/apache
+      dockerfile: Dockerfile
+    volumes:
+      - ./src/html:/var/www/html/
+      - ./000-default.conf:/etc/apache2/sites-available/000-default.conf
+      - ./logs/apache2:/var/log/apache2
+      - ./conf/apache/php.ini:/usr/local/etc/php/php.ini
+    ports:
+      - 8000:80
+    links:
+      - db
+    depends_on:
+      - db
+  front:
+    image: nginx:alpine
+    ports:
+      - 8080:80
+    volumes:
+      - ./conf/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./logs/nginx:/var/logs/nginx
+      - ./static-html-directory/:/usr/share/nginx/html
+    environment:
+      - NGINX_HOST=localhost
+      - NGINX_PORT=80
+    links:
+      - apache
+    depends_on:
+      - db
+      - apache
+  redis:
+    image: redis
+    restart: always
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - REDIS_PORT_NUMBER=6379
+    command: redis-server --save 20 1 --loglevel warning
+    ports:
+      - 6379:6379
+    volumes:
+      #- ./cache:/data
+      - ./logs/redis:/log
+      #- ./conf/redis:/conf
+
+
+volumes:
+  db_volume:
